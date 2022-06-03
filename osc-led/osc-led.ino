@@ -7,10 +7,11 @@ const IPAddress gateway(192, 168, 43, 1);  // ゲートウェイ = ネットワ�
 const IPAddress subnet(255, 255, 255, 0);  // サブネット = だいたいこの値
 
 // 送信先ポート
-const int port = 8000;
+const int portIncoming = 8000;
+const int portOutgoing = 8001;
 
 // 送信先IP
-const char* host = "192.168.43.12";
+const char* host = "127.0.0.0";
 
 bool isConnecting = false;
 
@@ -19,27 +20,25 @@ bool isLighting = false;
 
 void setup () {
   Serial.begin(115200);
-
   pinMode(pin1, OUTPUT);
 
-  // 自分のIPを決定する 一旦自分のスマホ
+  // ESP自身のIPを決定する 空いているかpingコマンドで事前に確認しておくのが良い
   IPAddress ip(192, 168, 43, 16);
 
+  // WiFi設定
   // 初期設定 まえの接続が残ってたりするといけないので一回消す
   WiFi.disconnect(true, true);
   delay(1000);
   WiFi.mode(WIFI_STA);
-
   WiFi.begin(ssid, pwd);
   WiFi.config(ip, gateway, subnet);
 
+  // WiFi接続開始 ------
+  Serial.print("INFO : Wi-Fi Start Connect.");
   int cnt = 0;
   bool isConnected = true;
   delay(1000);
-
   
-  Serial.print("INFO : Wi-Fi Start Connect.");
-
   // WiFiがつながるまでwhileを回す
   while (WiFi.status() != WL_CONNECTED) { 
     Serial.print(".");
@@ -53,22 +52,27 @@ void setup () {
   Serial.println("");
 
   if (isConnected) {
+    // WiFi接続完了 ------
     Serial.println("INFO : Wi-Fi Connected.");
     //受信のリスナー設定
-        OscWiFi.subscribe(port, "/app/status", onOscReceivedStatus);
-    //    OscWiFi.subscribe(port, "/app/threshold", onOscReceivedThreshold);
-    //    OscWiFi.subscribe(port, "/app/connect", onOscReceivedConnectTest);
-    //    OscWiFi.subscribe(port, "/app/usevibe", onOscReceivedUseVibe);
+    OscWiFi.subscribe(portIncoming, "/app/led", onOscReceivedStatus);
   } else {
     Serial.println("INFO : Wi-Fi Connect Failed.");
   }
   
   //コネクト処理終了フラグ
   isConnecting = false;
-  
+
 }
 
+void loop () {
+  // 必須
+  OscWiFi.update();
+}
+
+// /app/statusにメッセージが来たときのイベントハンドラ
 void onOscReceivedStatus(OscMessage& m) {
+  // メッセージ内容の取得方法
   int statusVal = m.arg<int>(0);
   Serial.print("onOscReceivedStatus : ");
   Serial.println(statusVal);
@@ -81,10 +85,7 @@ void onOscReceivedStatus(OscMessage& m) {
   isLighting = !isLighting;
 }
 
-void loop () {
-  OscWiFi.update();
-}
-
-void sendOsc(){
-  OscWiFi.send(host, port, "/app/status", 1);
+// 送信時のサンプル
+void sendOsc(int v){
+  OscWiFi.send(host, portOutgoing, "/app/status", v);
 }
